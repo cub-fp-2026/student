@@ -1,0 +1,12 @@
+name = "fp-2026-code"
+version = "0.1.0"
+defaultTargets = ["Course"]
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+rev = "v4.33.0"
+
+[[lean_lib]]
+name = "Course"
+globs = ["Course", "Course.+"]
