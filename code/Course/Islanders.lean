@@ -50,10 +50,10 @@ inductive Answer : List String → Type where
 /-- What an answer claims about the islanders `xs`, as something to prove.
 `impossible` claims `False`, so answering it commits you to deriving a
 contradiction. -/
-def Answer.holds : {ns : List String} → Answer ns → List Islander → Prop
+def Answer.Holds : {ns : List String} → Answer ns → List Islander → Prop
   | _, impossible, _ => False
   | _, last _ r, [x] => role x = r
-  | _, cons _ r rest, x :: xs => role x = r ∧ rest.holds xs
+  | _, cons _ r rest, x :: xs => role x = r ∧ rest.Holds xs
   | _, _, _ => False
 
 /-- The answer that no assignment of knights and knaves fits. -/
@@ -87,7 +87,7 @@ macro_rules
     | none => Macro.throwUnsupported
 
 open Lean Meta in
-/-- `Answer.holds` carried out wherever it is applied to a concrete answer, and
+/-- `Answer.Holds` carried out wherever it is applied to a concrete answer, and
 nothing else touched. -/
 private partial def reduceClaim (e : Expr) : MetaM Expr :=
   transform e (pre := step)
@@ -95,25 +95,25 @@ where
   step (e : Expr) : MetaM TransformStep := do
     let e ← whnfCore e
     if let .const n _ := e.getAppFn then
-      if n == ``Answer.holds then
+      if n == ``Answer.Holds then
         if let some e' ← unfoldDefinition? e then
           return ← step e'
     return .continue (some e)
 
 /-- `claim% ans xs` is what the answer `ans` claims about the islanders `xs`.
-It means the same as `ans.holds xs` — the two are definitionally equal — but the
+It means the same as `ans.Holds xs` — the two are definitionally equal — but the
 definition is already unfolded, so a puzzle's goal reads
-`role A = Role.knave ∧ role B = Role.knight` instead of `ans.holds [A, B]` and
+`role A = Role.knave ∧ role B = Role.knight` instead of `ans.Holds [A, B]` and
 you can get straight to proving it.
 
 While `ans` is still `sorry` there is nothing to unfold, and the goal shows
-`ans.holds xs`; fill the answer in and it becomes the claim you have to prove. -/
+`ans.Holds xs`; fill the answer in and it becomes the claim you have to prove. -/
 syntax "claim% " term:max term:max : term
 
 open Lean Elab Term in
 elab_rules : term
   | `(claim% $a $l) => do
-    let t ← elabTerm (← `(Answer.holds $a $l)) (some (.sort .zero))
+    let t ← elabTerm (← `(Answer.Holds $a $l)) (some (.sort .zero))
     synthesizeSyntheticMVars
     let t ← instantiateMVars t
     let t' ← reduceClaim t
@@ -121,6 +121,6 @@ elab_rules : term
     -- auxiliary matches are named under the definition they came from.
     let stuck := t'.find? fun e =>
       match e with
-      | .const n _ => (``Answer.holds).isPrefixOf n || n == ``sorryAx
+      | .const n _ => (``Answer.Holds).isPrefixOf n || n == ``sorryAx
       | _ => false
     return if stuck.isSome then t else t'
