@@ -1,8 +1,9 @@
 # Course code
 
 Lake project holding the Lean the students see: the live-coding lecture files
-`Course/LectureNN.lean` and the support code the homework statements talk
-about.
+`Course/LectureNN.lean`, the seminar exercise files `Course/SeminarNN.lean`,
+and the support code the homework statements talk about. Lecture and seminar
+files are published only up to the repo's `published-through` cap.
 
 ## Setup
 
