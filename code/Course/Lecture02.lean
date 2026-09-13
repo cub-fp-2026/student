@@ -9,65 +9,63 @@
 
 import Course.Islanders
 import Batteries.Tactic.Init
+import Mathlib.Tactic.Tauto
+import Mathlib.Tactic.Hint
 namespace Lecture02
 set_option linter.defProp false
 
 -- ## Tactics
 
 theorem selfImpl {A : Prop} : A → A := by
-  intro a
-  exact a
+  intro
+  assumption
 
 theorem implTrans {A B C : Prop} : (A → B) → (B → C) → (A → C) := by
-  intro ab bc a
-  apply bc
-  apply ab
-  exact a
+  intros
+  repeat apply_assumption
+
+#print implTrans
 
 theorem andSymm {A B : Prop} : A ∧ B → B ∧ A := by
-  intro h
-  obtain ⟨a, b⟩ := h
-  exact ⟨b, a⟩
+  rintro ⟨_, _⟩
+  constructor <;> assumption
 
 theorem orSymm {A B : Prop} : A ∨ B → B ∨ A := by
-  intro h
-  obtain a | b := h
+  rintro (_ | _)
   · right
-    exact a
+    assumption
   · left
-    exact b
+    assumption
 
--- rcases
 theorem orElim {A B C : Prop} (f : A → C) (g : B → C) : A ∨ B → C := by
-  intro h
-  rcases h with a | b
-  · exact f a
-  · exact g b
+  rintro (_ | _) <;> solve_by_elim
 
-theorem andDistribOr {A B C : Prop} : A ∧ (B ∨ C) → A ∧ B ∨ A ∧ C := by
-  intro h
-  rcases h with ⟨a, b | c⟩
+theorem andDistribOr {A B C : Prop} : A ∧ (B ∨ C) → A ∧ B ∨ A ∧ C
+  | ⟨a, .inl b⟩ => .inl ⟨a, b⟩
+  | ⟨a, .inr c⟩ => .inr ⟨a, c⟩
+
+/-
+ := by
+  rintro ⟨a, b | c⟩
   · left
     exact ⟨a, b⟩
   · right
     exact ⟨a, c⟩
+-/
+
+#print andDistribOr
 
 theorem exFalso {A : Prop} : False → A := by
-  intro h
-  exfalso
-  exact h
+  intros
+  contradiction
 
 theorem notNotIntro {A : Prop} : A → ¬¬A := by
-  intro a not_a
-  apply not_a
-  exact a
+  intro _ _
+  contradiction
 
 theorem notIsArrow {A : Prop} : ¬A ↔ (A → False) := by
-  constructor
-  · intro not_a a
-    exact not_a a
-  · intro not_a
-    exact not_a
+  -- variation
+  constructor <;> (intro _ _; contradiction)
 
 theorem absurdLive {A C : Prop} : A → ¬A → C := by
   intro a not_a
@@ -75,20 +73,18 @@ theorem absurdLive {A C : Prop} : A → ¬A → C := by
   exact not_a a
 
 theorem deMorganOr {A B : Prop} : ¬(A ∨ B) ↔ ¬A ∧ ¬B := by
+  -- variation
   constructor
   · intro not_a_or_b
     constructor
-    · intro a
-      have a_or_b : A ∨ B := Or.inl a
-      exact not_a_or_b a_or_b
+    · intro
+      apply not_a_or_b
+      left
+      assumption
     · intro b
       have a_or_b : A ∨ B := Or.inr b
       exact not_a_or_b a_or_b
-  · intro not_a_or_not_b
-    intro a_or_b
-    obtain a | b := a_or_b
-    · exact not_a_or_not_b.left a
-    · exact not_a_or_not_b.right b
+  · rintro ⟨na, nb⟩ (a | b) <;> contradiction
 
 -- two approaches:
 -- `by_cases a : A`
@@ -105,10 +101,21 @@ theorem notNotElim {A : Prop} : ¬¬A → A := by
 theorem notNotElim' {A : Prop} : ¬¬A → A := by
   intro h
   by_contra h2
-  exfalso
-  exact h h2
+  contradiction
 
 -- ## Inductive types
+
+/-
+class Pair {
+  val x: Int
+  val y: Int
+}
+-/
+
+inductive Pair where
+| pair (x y : Nat)
+
+#print Pair
 
 #print Role
 
@@ -116,9 +123,16 @@ def Role.flip : Role → Role
   | .knight => .knave
   | .knave => .knight
 
-#eval Role.flip .knight
+#eval Role.flip Role.knight
 
 theorem flipKnight : Role.flip .knight = .knave := by
+  rewrite [Role.flip]
+  rfl
+
+theorem flipFlipKnight : Role.flip (Role.flip .knight) = Role.flip .knave := by
+  conv => rhs; rewrite [Role.flip]
+  rewrite [Role.flip]
+  rewrite [Role.flip]
   rfl
 
 theorem flipFlip (r : Role) : Role.flip (Role.flip r) = r := by
@@ -136,11 +150,21 @@ theorem flipNeSelf (r : Role) : Role.flip r ≠ r := by
 
 -- ## Equality
 
+-- note: equalities
+#print Eq
+
+example (r1 r2 : Role) (h : Role.flip .knight = Role.flip .knave) :
+    r1 = .knight ∧ r2 = .knave := by
+  repeat rw [Role.flip] at h
+  cases h
+
 theorem eqSymm {α : Type} (a b : α) (h : a = b) : b = a := by
   rw [h]
 
 theorem eqTrans {α : Type} (a b c : α) (h₁ : a = b) (h₂ : b = c) : a = c := by
-  rw [h₁, h₂]
+  cases h₁
+  cases h₂
+  rfl
 
 theorem congrRole (A B : Islander) (h : A = B) : role A = role B := by
   rw [h]
@@ -214,11 +238,10 @@ theorem injectiveId {α : Type} : Injective (fun x : α => x) := by
 theorem flipInjective : Injective Role.flip := by
   unfold Injective
   intro x y h
-  cases x <;> cases y
-  · rfl
+  -- variation
+  cases x <;> cases y <;> try rfl
   · cases h
   · cases h
-  · rfl
 
 theorem flipSurjective : Surjective Role.flip := by
   unfold Surjective
@@ -336,5 +359,89 @@ theorem puzzleSomeKnight (A B : Islander)
       have h := hB.mpr hrA
       rw [hrB] at h
       cases h
+
+-- # Bonus lecture material
+
+-- ## Inductive Types
+
+inductive MyBool : Type where
+  | t : MyBool
+  | f : MyBool
+
+#print MyBool
+
+def or : MyBool → MyBool → MyBool
+  | .t, .t => .t
+  | .f, .t => .t
+  | .t, .f => .t
+  | .f, .f => .f
+
+def and : MyBool → MyBool → MyBool
+  | .t, .t => .t
+  | _, _ => .f
+
+def not : MyBool → MyBool
+  | .t => .f
+  | .f => .t
+
+def PropDeMorgan (P Q : Prop) :
+    Not (And P Q) ↔ Or (Not P) (Not Q) := by
+  constructor
+  · sorry
+  · rintro (np | nq) ⟨p, q⟩ <;> contradiction
+
+def myBoolDeMorgan (x y : MyBool) :
+    not (and x y) = or (not x) (not y) := by
+  cases x <;> cases y <;> rfl
+  /-
+  · conv => rhs; repeat rewrite [not]
+    rewrite [and]
+    rewrite [or]
+    rewrite [not]
+    rfl
+  -/
+
+-- ## Bool vs Prop vs Type
+
+#check Bool.true
+#print Bool
+#check True
+example (tt : True) : True := tt
+
+inductive MyPropBool : Prop where
+  | tProp : MyPropBool
+  | fProp : MyPropBool
+
+example : ∀ x y: MyPropBool, x = y := fun _ _ => rfl
+example : ∃ x y: MyBool, x ≠ y := by
+  exists .t
+  exists .f
+  intro h
+  contradiction
+
+example : MyPropBool → MyBool := sorry
+/-
+| .tProp => .t
+| .fProp => .f
+-/
+
+
+-- ## The Curry-Howard Isomorphism
+
+-- a proposition: a type of type Prop
+-- a proof: a term of a proposition type
+  -- (i.e. a term of a type of type Prop t : P : Prop)
+
+example {A : Prop} : A → A → A := by
+  intro x y
+  assumption
+
+
+-- a value type: a type of type Type
+-- a program: a term of a value type
+  -- (i.e. a term of a type of type Type, t : T : Type)
+
+def myFirst {A : Type} : A → A → A := fun x _ => x
+def mySecond {A : Type} : A → A → A := fun _ y => y
 
 end Lecture02
