@@ -11,6 +11,7 @@ import Course.Islanders
 import Batteries.Tactic.Init
 import Mathlib.Tactic.Tauto
 import Mathlib.Tactic.Hint
+import Mathlib.Tactic.Ring
 namespace Lecture03
 
 -- ## MyBool
@@ -87,7 +88,7 @@ def add : MyNat → MyNat → MyNat
 
 -- (0) + ((0)) ~> ((0) + (0)) ~> (((0) + 0)) ~> (((0)))
 
-theorem add_zero (n : MyNat) : add n .zero = n := by rfl
+theorem add_zero (n : MyNat) : add n .zero = n := rfl
 
 -- rfl : a = a
 -- here we have goal: 0 + n = n
@@ -97,12 +98,19 @@ theorem add_zero (n : MyNat) : add n .zero = n := by rfl
 
 theorem zero_add (n : MyNat) : add .zero n = n := by
   induction n
-  case zero => sorry
-  case succ m ih => sorry
+  case zero => rfl
+  case succ m ih => rw [add, ih]
 
-theorem add_succ (n m : MyNat) : add n (.succ m) = .succ (add n m) := by sorry
+theorem add_succ (n m : MyNat) : add n (.succ m) = .succ (add n m) := rfl
 
-theorem succ_add (n m : MyNat) : add (.succ n) m = .succ (add n m) := by sorry
+theorem succ_add (n m : MyNat) : add (.succ n) m = .succ (add n m) := by
+  induction m
+  case zero => rfl
+  case succ m' ih => rw [add, ih]; rfl
+
+-- succ case above rewritten:
+-- IH: (n + 1) + m = (n + m) + 1
+-- (n + 1) + (m + 1) = (n + (m + 1)) + 1
 
 end MyNat
 
@@ -112,11 +120,16 @@ end MyNat
 
 example (n : Nat) : n + 0 = n := rfl
 
-theorem zero_add' (n : Nat) : 0 + n = n := by sorry
+theorem zero_add' (n : Nat) : 0 + n = n := by
+  induction n
+  case zero => rfl
+  case succ n' ih =>
+    calc 0 + (n' + 1) = (0 + n') + 1 := rfl
+         _ = n' + 1 := by rw [ih]
 
 theorem succ_ne_zero' (n : Nat) : n + 1 ≠ 0 := by
   intro h
-  cases h
+  contradiction
 
 theorem succ_inj' (n m : Nat) (h : n + 1 = m + 1) : n = m := by
   cases h
@@ -140,34 +153,33 @@ def double : Nat → Nat
   | 0 => 0
   | n + 1 => double n + 2
 
-example : double 3 = 6 := sorry
+example : double 3 = 6 := rfl
 
-example : double 3 = 6 := sorry
+theorem double_eq_mul_two (n : Nat) : double n = 2 * n := by
+  induction n
+  case zero => rfl
+  case succ n' ih =>
+    rw [double, ih]
+    ring
 
-theorem double_eq_mul_two (n : Nat) : double n = 2 * n := sorry
-
-theorem double_eq_add_self (n : Nat) : double n = n + n := by sorry
-
--- ## calc and simp
-
-theorem double_eq_add_self_calc (n : Nat) : double n = n + n := by sorry
-
-theorem zero_chain (a b : Nat) : 0 + (a + 0) + (0 + b) = a + b := by sorry
-
-theorem zero_chain' (a b : Nat) : 0 + (a + 0) + (0 + b) = a + b := by sorry
-
-theorem double_eq_two_mul' (n : Nat) : double n = 2 * n := by sorry
-
-example (n : Nat) : 0 + n = n := by sorry
-
+theorem double_eq_add_self (n : Nat) : double n = n + n := by
+  induction n
+  case zero => rfl
+  case succ n' ih =>
+    rw [double, ih]
+    omega
 
 -- ## Equality
 
+-- myEq x y represents x = y
+inductive myEq {A : Type} : A → A → Prop where
+  | rfl : (a : A) → myEq a a
+
 def isEq : Nat → Nat → Bool
 | 0, 0 => true
-| n + 1, m + 1 => isEq n m
 | _ + 1, 0 => false
 | 0, _ + 1 => false
+| n + 1, m + 1 => isEq n m
 
 theorem isEq_implies_eq (n m : Nat) : isEq n m = true → n = m := by
   intro h
@@ -192,8 +204,7 @@ theorem eq_implies_isEq (n m : Nat) : n = m → isEq n m = true := by
   rintro rfl
   induction n
   · rfl
-  · rw [isEq] at *
+  · rw [isEq]
     assumption
-
 
 end Lecture03
