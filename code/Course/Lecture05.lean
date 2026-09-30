@@ -201,8 +201,21 @@ lemma mem_insertOrdered (n x : Nat) (xs : List Nat) :
         case tail h =>
           have h' : x ∈ insertOrdered n xs' := h
           rw [ih] at h'
-          sorry
-      · sorry
+          rcases h' with (rfl | h')
+          · left; rfl
+          · right
+            constructor
+            exact h'
+      · rintro (rfl | (h | h))
+        · constructor
+          apply ih.mpr
+          left
+          rfl
+        · constructor
+        · constructor
+          apply ih.mpr
+          right
+          assumption
     · sorry
 
 lemma mem_insertionSort (x : Nat) (xs : List Nat) :
