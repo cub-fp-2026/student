@@ -5,6 +5,8 @@ import Mathlib
 
 namespace Lecture06
 
+#print List
+
 /-! ## `map` -/
 
 def doubleAll : List Nat → List Nat
@@ -18,43 +20,54 @@ def isEvenAll : List Nat → List Bool
 #eval doubleAll [3, 0, 5]
 #eval isEvenAll [3, 0, 5]
 
-def map (f : α → β) : List α → List β := by
-  sorry
+def map (f : α → β) : List α → List β
+| [] => []
+| x :: xs => f x :: map f xs
 -- In the library: List.map.
 
 example (xs : List Nat) : doubleAll xs = map (fun n => 2 * n) xs := by
-  sorry
+  induction xs
+  case nil =>
+    rewrite [doubleAll, map]
+    rfl
+  case cons x xs ih =>
+    rewrite [doubleAll, map, ih]
+    rfl
+  -- induction xs <;> simp [doubleAll, map, *]
 
 -- Nicer syntax:
 -- - composition
 -- - pipelines
 
-def compose (g : β → γ) (f : α → β) : α → γ := by
-  sorry
+def compose (g : β → γ) (f : α → β) : α → γ :=
+  fun a => g (f a)
 -- In the library: Function.comp, written `g ∘ f`.
 
 theorem map_compose (g : β → γ) (f : α → β) (xs : List α) :
     map (compose g f) xs = map g (map f xs) := by
-  sorry
+  induction xs
+  case nil => rfl
+  case cons x xs ih => rw [map, map, map, compose, ih]
 
-example (g : β → γ) (f : α → β) : compose g f = g ∘ f := by
-  sorry
+example (g : β → γ) (f : α → β) : compose g f = g ∘ f := by rfl
+
+example (g : β → γ) (f : α → β) : map (g ∘ f) = map g ∘ map f := by
+  funext
+  apply map_compose
 
 -- `(· + 1)` is short for `fun x => x + 1`.
-example : (· + 1) = fun (x : Nat) => x + 1 := by
-  sorry
+example : (· + 1) = fun (x : Nat) => x + 1 := by rfl
 
 -- Partial application: `map (· + 1)` is a function that still waits for its list.
-def incrementAll : List Nat → List Nat := by
-  sorry
+def incrementAll : List Nat → List Nat := map (· + 1)
 
-example : incrementAll [1, 2] = [2, 3] := by
-  sorry
+example : incrementAll [1, 2] = [2, 3] := by rfl
 
 -- `x |> f` is `f x`, so a pipeline reads from left to right.
 example (xs : List Nat) :
     (xs |> map (· + 1) |> map (2 * ·)) = map ((2 * ·) ∘ (· + 1)) xs := by
-  sorry
+  symm
+  apply map_compose
 
 /-! ## `filter` -/
 
@@ -66,12 +79,16 @@ def belowTen : List Nat → List Nat
   | [] => []
   | x :: xs => if x < 10 then x :: belowTen xs else belowTen xs
 
-def filter (p : α → Bool) : List α → List α := by
-  sorry
+def filter (p : α → Bool) : List α → List α
+| [] => []
+| x :: xs =>
+    let xs' := filter p xs
+    if p x
+    then x :: xs'
+    else xs'
 -- In the library: List.filter.
 
-example : filter (· > 0) [0, 8, 0, 4] = [8, 4] := by
-  sorry
+example : filter (· > 0) [0, 8, 0, 4] = [8, 4] := by rfl
 
 /-! ## `flatMap` -/
 
@@ -79,12 +96,17 @@ def stutter : List Nat → List Nat
   | [] => []
   | x :: xs => x :: x :: stutter xs
 
-def flatMap (f : α → List β) : List α → List β := by
-  sorry
+def flatMap (f : α → List β) : List α → List β
+  | [] => []
+  | x :: xs => f x ++ flatMap f xs
 -- In the library: List.flatMap.
 
 example (xs : List Nat) : stutter xs = flatMap (fun x => [x, x]) xs := by
-  sorry
+  induction xs
+  case nil => rfl
+  case cons x xs ih =>
+    rewrite [stutter, flatMap, ih]
+    rfl
 
 /-! ## `foldr` -/
 
@@ -92,22 +114,41 @@ def sum : List Nat → Nat
   | [] => 0
   | x :: xs => x + sum xs
 
+-- 1 :: 2 :: 3 :: []
+-- 1 +  2 +  3 +  0
+-- 1 *  2 *  3 *  1
+
 def product : List Nat → Nat
   | [] => 1
   | x :: xs => x * product xs
 
-def foldr (step : α → β → β) (empty : β) : List α → β := by
-  sorry
+def foldr (step : α → β → β) (empty : β) : List α → β
+  | [] => empty
+  | x :: xs => step x (foldr step empty xs)
 -- In the library: List.foldr.
 
 example (xs : List Nat) : sum xs = foldr (· + ·) 0 xs := by
-  sorry
+  induction xs
+  case nil => rfl
+  case cons x xs ih => rw [sum, foldr, ih]
 
-def mapViaFold (f : α → β) (xs : List α) : List β := by
-  sorry
+/-
+def map (f : α → β) : List α → List β
+| [] => []
+| x :: xs => f x :: map f xs
 
-def filterViaFold (p : α → Bool) (xs : List α) : List α := by
-  sorry
+def filter (p : α → Bool) : List α → List α
+| [] => []
+| x :: xs =>
+    let xs' := filter p xs
+    if p x then x :: xs' else xs'
+-/
+
+def mapViaFold (f : α → β) : List α → List β :=
+  foldr (fun x ys => f x :: ys) []
+
+def filterViaFold (p : α → Bool) : List α → List α :=
+  foldr (fun x ys => if p x then x :: ys else ys) []
 
 #check @List.rec
 
@@ -121,29 +162,40 @@ def sumFrom (acc : Nat) : List Nat → Nat
   | [] => acc
   | x :: xs => sumFrom (acc + x) xs
 
-def foldl (step : β → α → β) (acc : β) : List α → β := by
-  sorry
+def reverseHelper (acc : List α) : List α → List α
+  | [] => acc
+  | x :: xs => reverseHelper (x :: acc) xs
+def reverse (xs : List α) := reverseHelper [] xs
+
+example : reverseHelper [] [1, 2, 3] = [3, 2, 1] := by rfl
+
+def foldl (step : β → α → β) (acc : β) : List α → β
+  | [] => acc
+  | x :: xs => foldl step (step acc x) xs
 -- In the library: List.foldl.
 
-example : foldr (fun x rest => x - rest) 0 [10, 3, 2] = 9 := by
-  sorry
-example : foldl (fun acc x => acc - x) 0 [10, 3, 2] = 0 := by
-  sorry
+example {xs: List α} : reverse xs = foldl (fun ys x => x :: ys) [] xs := by
+  unfold reverse
+  generalize [] = ys
+  induction xs generalizing ys
+  case nil => rfl
+  case cons x xs ih =>
+    rewrite [reverseHelper, foldl, ih]
+    rfl
 
-def decimalValue (digits : List Nat) : Nat := by
-  sorry
+def decimalValue : List Nat → Nat := foldl (10 * · + ·) 0
+def decimalValue' (digits : List Nat) : Nat := foldl (10 * · + ·) 0 digits
 
-example : decimalValue [2, 0, 7] = 207 := by
-  sorry
+example : decimalValue [2, 0, 7] = 207 := by rfl
 
 -- Use Lean's List.map, List.filter, List.foldr and List.foldl from here on.
 
 /-! ## More library combinators -/
 
--- List.zipWith f combines corresponding elements with f, up to the shorter length.
-#eval List.zipWith (· + ·) [1, 2, 3] [10, 20]
 -- List.zip pairs corresponding elements.
 #eval List.zip [1, 2, 3] ['a', 'b', 'c']
+-- List.zipWith f combines corresponding elements with f, up to the shorter length.
+#eval List.zipWith (· + ·) [1, 2, 3] [10, 20]
 -- List.any p asks whether some element satisfies p.
 #eval [1, 2, 3].any (· > 2)
 -- List.all p asks whether every element satisfies p.
@@ -160,33 +212,41 @@ inductive Tree (α : Type) where
   | node (left : Tree α) (value : α) (right : Tree α)
   deriving Repr, DecidableEq
 
+#check Tree.empty
+#check Tree.node
+
 def Tree.sizeLoop : Tree α → Nat
   | .empty => 0
   | .node left _ right => left.sizeLoop + 1 + right.sizeLoop
 
-def Tree.fold (empty : β) (node : β → α → β → β) : Tree α → β := by
-  sorry
+def Tree.fold (empty : β) (node : β → α → β → β) : Tree α → β
+  | .empty => empty
+  | .node lhs a rhs => node (lhs.fold empty node) a (rhs.fold empty node)
 
 def oak : Tree Nat :=
   .node (.node .empty 4 .empty) 2 (.node .empty 7 (.node .empty 1 .empty))
 
-def Tree.size (t : Tree α) : Nat := by
-  sorry
+def Tree.size (t : Tree α) : Nat := t.fold 0 (fun ls _ rs => ls + 1 + rs)
 
-example : oak.size = oak.sizeLoop := by
-  sorry
+example : oak.size = oak.sizeLoop := by rfl
 
-def Tree.toList (t : Tree α) : List α := by
-  sorry
+def Tree.toList (t : Tree α) : List α :=
+  t.fold [] (fun ls a rs => ls ++ [a] ++ rs)
 
-example : oak.toList = [4, 2, 7, 1] := by
-  sorry
+def Tree.toListPre (t : Tree α) : List α :=
+  t.fold [] (fun ls a rs => [a] ++ ls ++ rs)
 
-def Tree.map (f : α → β) (t : Tree α) : Tree β := by
-  sorry
+example : oak.toList = [4, 2, 7, 1] := by rfl
 
-example : (oak.map (· * 10)).toList = [40, 20, 70, 10] := by
-  sorry
+def Tree.map (f : α → β) (t : Tree α) : Tree β :=
+  t.fold Tree.empty (fun ls a rs => Tree.node ls (f a) rs)
+
+-- A map is a function of type (α → β) → F α → F β such that
+-- map f ∘ map g = map (f ∘ g)
+-- map id = id
+-- This uniquely defines map for a large class of F.
+
+example : (oak.map (· * 10)).toList = [40, 20, 70, 10] := by rfl
 
 /-! ## A loop as a pipeline -/
 
@@ -194,12 +254,19 @@ def sumEvenSquaresLoop : List Nat → Nat
   | [] => 0
   | x :: xs => if x % 2 = 0 then x * x + sumEvenSquaresLoop xs else sumEvenSquaresLoop xs
 
-def sumEvenSquares (xs : List Nat) : Nat := by
-  sorry
+def sumEvenSquares (xs : List Nat) : Nat :=
+  xs |> filter (· % 2 = 0) |> map (fun x => x * x) |> sum
 
 theorem sumEvenSquaresLoop_eq_sumEvenSquares (xs : List Nat) :
     sumEvenSquaresLoop xs = sumEvenSquares xs := by
-  sorry
+  unfold sumEvenSquares
+  induction xs
+  case nil => rfl
+  case cons x xs ih =>
+    rw [sumEvenSquaresLoop, filter]
+    by_cases h : x % 2 = 0
+    · sorry
+    · sorry
 
 /-! ## Pythagorean triples -/
 
