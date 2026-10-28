@@ -33,72 +33,99 @@ def Tree.toList : Tree α → List α
   | .empty => []
   | .node l x r => l.toList ++ [x] ++ r.toList
 
-def Tree.foldMap [MyMonoid μ] (f : α → μ) : Tree α → μ := by
-  sorry
+def Tree.fold (lf : ρ) (comb : ρ → α → ρ → ρ) : Tree α → ρ
+  | .empty => lf
+  | .node l x r => comb (l.fold lf comb) x (r.fold lf comb)
 
-example : sampleTree.foldMap id = 6 := by
-  sorry
-example : sampleTree.foldMap (fun x => [x]) = [1, 2, 3] := by
-  sorry
+def Tree.sum' : Tree Nat → Nat := Tree.fold 0 (fun l x r => l + x + r)
+def Tree.toList' : Tree α → List α :=
+  Tree.fold [] (fun l x r => l ++ [x] ++ r)
+
+def Tree.foldMap [MyMonoid μ] (f : α → μ) : Tree α → μ
+  | .empty => MyMonoid.unit
+  | .node l x r => l.foldMap f ⋄ f x ⋄ r.foldMap f
+
+def Tree.foldMap' [MyMonoid μ] (f : α → μ) : Tree α → μ :=
+  Tree.fold MyMonoid.unit (fun l x r => l ⋄ f x ⋄ r)
+
+example (t : Tree Nat) : t.sum = t.foldMap id := by
+  induction t <;> simp [Tree.sum, Tree.foldMap, MyMonoid.unit, MyMonoid.op, *]
+
+example : sampleTree.foldMap id = 6 := by rfl
+example : sampleTree.foldMap (fun x => [x]) = [1, 2, 3] := by rfl
 
 class MyFoldable (F : Type → Type) where
   foldMap [MyMonoid μ] : (α → μ) → F α → μ
 
-instance : MyFoldable Tree := by
-  sorry
+instance : MyFoldable Tree where
+  foldMap := Tree.foldMap
 
-instance : MyFoldable List := by
-  sorry
+instance : MyFoldable List where
+  foldMap f := List.foldr (fun x r => f x ⋄ r) MyMonoid.unit
 
-instance : MyFoldable Option := by
-  sorry
+#print Option
 
-def size [MyFoldable F] (xs : F α) : Nat := by
-  sorry
+instance : MyFoldable Option where
+  foldMap
+  | _, .none => MyMonoid.unit
+  | f, .some x => f x
 
-def elements [MyFoldable F] (xs : F α) : List α := by
-  sorry
+def size [MyFoldable F] (xs : F α) : Nat :=
+  MyFoldable.foldMap (fun _ => 1) xs
 
-example : size sampleTree = 3 := by
-  sorry
-example : size ["a", "b"] = 2 := by
-  sorry
-example : size (none : Option Nat) = 0 := by
-  sorry
-example : elements sampleTree = [1, 2, 3] := by
-  sorry
+def elements [MyFoldable F] (xs : F α) : List α :=
+  MyFoldable.foldMap (fun x => [x]) xs
+
+example : size sampleTree = 3 := by rfl
+example : size ["a", "b"] = 2 := by rfl
+example : size (none : Option Nat) = 0 := by rfl
+example : elements sampleTree = [1, 2, 3] := by rfl
+example : elements (some 5) = [5] := by rfl
 
 -- ## The same map, three containers
 
-def Tree.map (f : α → β) : Tree α → Tree β := by
-  sorry
+def Tree.map (f : α → β) : Tree α → Tree β
+  | .empty => .empty
+  | .node l x r => .node (l.map f) (f x) (r.map f)
 
 example : sampleTree.map (· * 10) =
     .node (.node .empty 10 .empty) 20 (.node .empty 30 .empty) := by
-  sorry
+  rfl
 
 #print Functor
 
-instance : Functor Tree := by
-  sorry
+instance : Functor Tree where
+  map := Tree.map
 
-example : (· * 10) <$> [1, 2, 3] = [10, 20, 30] := by
-  sorry
-example : (· * 10) <$> some 2 = some 20 := by
-  sorry
-example : (· * 10) <$> (none : Option Nat) = none := by
-  sorry
-example : String.length <$> ["one", "three"] = [3, 5] := by
-  sorry
+example : (· * 10) <$> [1, 2, 3] = [10, 20, 30] := by rfl
+example : (· * 10) <$> some 2 = some 20 := by rfl
+example : (· * 10) <$> (none : Option Nat) = none := by rfl
+example : String.length <$> ["one", "three"] = [3, 5] := by rfl
+
+inductive Pair (α : Type) where
+  | mk : α → α → Pair α
+  deriving Functor
+
+#eval (· + 1) <$> Pair.mk 5 7
+
+inductive Pred (α : Type) where
+  | mk : (α → Bool) → Pred α
+
+def Pred.map (f : α → β) : Pred α → Pred β
+  | .mk p => .mk (fun b => sorry) -- impossible
+
+-- cofunctor F: (f : α → β) : F β → F α
 
 -- ## Functor laws
 
 theorem Tree.map_id (t : Tree α) : id <$> t = t := by
-  sorry
+  induction t <;> simp [Functor.map, map, *] at *; tauto
+
+-- tauto can prove goals like: A ∧ B → B ∧ A
 
 theorem Tree.map_comp (f : α → β) (g : β → γ) (t : Tree α) :
     (g ∘ f) <$> t = g <$> (f <$> t) := by
-  sorry
+  induction t <;> simp [Functor.map, map, *] at *; tauto
 
 #print LawfulFunctor
 
@@ -122,71 +149,105 @@ def skipLevelDesk? (name : String) : Option Nat :=
     | none => none
     | some mm => desk? mm
 
-example : skipLevelDesk? "Ada" = some 3 := by
-  sorry
-example : skipLevelDesk? "Grace" = none := by
-  sorry
+example : skipLevelDesk? "Ada" = some 3 := by rfl
+example : skipLevelDesk? "Grace" = none := by rfl
 
-example : (manager? "Ada").map manager? = some (some "Frances") := by
-  sorry
+example : manager? <$> (manager? "Ada") = some (some "Frances") := by rfl
 
 -- ## Extracting bind
 
-def bindOption (x : Option α) (f : α → Option β) : Option β := by
-  sorry
+def bindOption (x : Option α) (f : α → Option β) : Option β :=
+  match x with
+  | .none => .none
+  | .some v => f v
 
-def skipLevelDesk?' (name : String) : Option Nat := by
-  sorry
+def skipLevelDesk?' (name : String) : Option Nat :=
+  bindOption (manager? name) (fun m => bindOption (manager? m) desk?)
 
 example (name : String) : skipLevelDesk? name = skipLevelDesk?' name := by
-  sorry
+  unfold skipLevelDesk?
+  unfold skipLevelDesk?'
+  split
+  · rename_i m hm
+    rw [hm]
+    rfl
+  · rename_i m' m hm
+    rw [hm]
+    simp [bindOption]
+    split
+    · rename_i mm hmm
+      rw [hmm]
+    · rename_i mm' mm hmm
+      rw [hmm]
 
 #print Monad
+
+-- we can't do: desk? (manager? (manager? name))
+def skipLevelDesk?'' (name : String) : Option Nat :=
+  (manager? name >>= fun m => manager? m) >>= desk?
 
 example (x : Option α) (f : α → Option β) : x >>= f = bindOption x f := by
   sorry
 
-def skipLevelDeskDo (name : String) : Option Nat := by
-  sorry
+def skipLevelDeskDo (name : String) : Option Nat := do
+  let m <- manager? name
+  let mm <- manager? m
+  desk? mm
 
-example : skipLevelDeskDo "Ada" = some 3 := by
-  sorry
+example : skipLevelDeskDo "Ada" = some 3 := by rfl
 
 -- ## Monad laws
 
-example (a : α) (f : α → Option β) : (pure a >>= f) = f a := by
-  sorry
+example (a : α) (f : α → Option β) : (pure a >>= f) = f a := by rfl
 example (x : Option α) : (x >>= pure) = x := by
-  sorry
+  cases x <;> rfl
 example (x : Option α) (f : α → Option β) (g : β → Option γ) :
     (x >>= f >>= g) = (x >>= fun a => f a >>= g) := by
-  sorry
+  cases x <;> rfl
 
 #print LawfulMonad
 
 -- ## The same code, three monads
 
-def twice [Monad m] (step : String → m String) (name : String) : m String := by
-  sorry
+def twice [Monad m] (step : String → m String) (name : String) : m String := do
+  let name' <- step name
+  let name'' <- step name'
+  return name''
 
-example : twice manager? "Ada" = some "Frances" := by
-  sorry
+example : twice manager? "Ada" = some "Frances" := by rfl
+example : twice manager? "Grace" = none := by rfl
+
+#print Except
 
 def managerE (name : String) : Except String String :=
   match managers.lookup name with
   | none => .error s!"{name} has no manager"
   | some m => .ok m
 
-example : twice managerE "Grace" = .error "Frances has no manager" := by
-  sorry
+example : twice managerE "Grace" = .error "Frances has no manager" := by rfl
+
+partial def numbersFromUpTo (i j : Nat) : List Nat :=
+  if i <= j
+  then i :: numbersFromUpTo (i+1) j
+  else []
+
+#eval numbersFromUpTo 1 5
+
+def pythogoreanTriples (n : Nat) : List (Nat × Nat × Nat) := do
+  let a <- numbersFromUpTo 1 n
+  let b <- numbersFromUpTo a n
+  let c <- numbersFromUpTo b n
+  if a * a + b * b = c * c
+  then [(a, b, c)]
+  else []
+
+#eval pythogoreanTriples 10
 
 -- Everyone whose manager is `name`, in list order.
 def reports (name : String) : List String :=
   (managers.filter (·.2 == name)).map (·.1)
 
-example : reports "Frances" = ["Grace", "Edsger"] := by
-  sorry
-example : twice reports "Frances" = ["Ada", "Alan"] := by
-  sorry
+example : reports "Frances" = ["Grace", "Edsger"] := by rfl
+example : twice reports "Frances" = ["Ada", "Alan"] := by rfl
 
 end Lecture09
